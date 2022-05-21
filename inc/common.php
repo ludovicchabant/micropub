@@ -166,7 +166,18 @@ function show_config($show = 'all') {
 
 function build_site() {
     global $config;
-    exec( $config['command']);
+    $command = str_replace(
+        array(
+            ':base-path', ':source-path',
+            ':base-url'),
+        array(
+            $config['base_path'], $config['source_path'],
+            $config['base_url']),
+        $config['command']);
+    $prevwd = getcwd();
+    chdir($config['source_path']);
+    exec($command);
+    chdir($prevwd);
 }
 
 # PHP handles arrays of file uploads differently from a single file upload.
