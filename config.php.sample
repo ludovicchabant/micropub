@@ -15,15 +15,32 @@ $config = array(
     'base_path' => '/var/www/html/',
 
     # the name of the sub-directory for images, with trailing slash.
-    # we'll create sub-directories of the form 'year/month/'.
-    'upload_path' => 'images/',
+    'upload_path' => 'images/' . date('Y/m/'),
 
-    # the max pixel width of uploaded images.
+    # the max pixel width of uploaded images (0 or less to disable).
     'max_image_width' => 800,
+
+    # the pixel width of uploaded image thumbnails.
+    'thumbnail_width' => 400,
+
+    # whether to insert an actual image tag for photo posts.
+    'append_image_markup' => FALSE,
 
     # the path to the Hugo site.  DO NOT include "content/", we'll handle that.
     # trailing slash required.
     'source_path' => '/var/www/skippy/',
+
+    # how to store various types of content.
+    # Supported types are "page" and "data". If unspecified, defaults to
+    # data.
+    'content_storage_type' => array(
+        'article' => 'page'
+    ),
+
+    # the structure of URLs for various content types.
+    'content_urls' => array(
+        'article'     => 'posts/:year/:month/:day/:filename'
+    ),
 
     # different types of content may have different paths.
     # by default, articles are in the root of the /content/ directory, so
@@ -31,6 +48,7 @@ $config = array(
     # Notes, reposts, replies, etc are being stored as Hugo data files
     # in the /data directory. No need to prepend "/data" to these paths.
     'content_paths' => array(
+        'article'     => 'posts/:year/:month/:day/:filename.md',
         'bookmark-of' => 'bookmarks',
         'in-reply-to' => date('Y/m'),
         'like-of'     => 'likes',

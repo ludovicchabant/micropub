@@ -2,26 +2,6 @@
 
 use Symfony\Component\Yaml\Yaml;
 
-function get_source_from_url($url) {
-    global $config;
-
-    # our config has the Hugo root, so append "content/".
-    $source_path = $config['source_path'] . 'content/';
-    $path = str_replace($config['base_url'], $source_path, $url);
-    if ('index.html' == substr($path, -10)) {
-        # if this was a full URL to "/index.html", replace that with ".md"
-        $path = str_replace('/index.html', '.md', $path);
-    } elseif ( '/' == substr($path, -1)) {
-        # if this is a URL ending in just "/", replace that with ".md"
-        $path = rtrim($path, '/') . '.md';
-    } else {
-        # should be a URL of the directory containing index.htm, so just
-        # tack on ".md" to the path
-        $path .= '.md';
-    }
-    return $path;
-}
-
 function parse_file($original) {
     $properties = [];
     # all of the front matter will be in $parts[1]
@@ -39,10 +19,23 @@ function parse_file($original) {
     return $properties;
 }
 
+# finds the posttype of the given URL, defaults to `article`.
+function get_content_type_from_url($url) {
+    global $config;
+    foreach ($config['content_urls'] as $pt => $perm) {
+        $perm_regex = permalink_format_to_regex($perm);
+        if (preg_match($perm_regex, $url) === 1) {
+            return $pt;
+        }
+    }
+    return 'article';
+}
+
 # this function fetches the source of a post and returns a JSON
 # encoded object of it.
 function show_content_source($url, $properties = []) {
-    $source = parse_file( get_source_from_url($url) );
+    $posttype = get_content_type_from_url($url);
+    $source = parse_file( get_source_from_url($posttype, $url) );
     $props = [];
 
     # the request may define specific properties to return, so
@@ -54,7 +47,7 @@ function show_content_source($url, $properties = []) {
             }
         }
     } else {
-        $props = parse_file( get_source_from_url($url) );
+        $props = $source;
     }
     header( "Content-Type: application/json");
     print json_encode( [ 'properties' => $props ] );
@@ -138,8 +131,11 @@ function post_type_discovery($properties) {
 # Articles are full Markdown files; everything else is just YAML blobs
 # to be appended to a data file.
 function build_post( $front_matter, $content) {
+    global $config;
+    $posttype = $front_matter['posttype'];
+    $storage_type = $config['content_storage_type'][$posttype] ?? 'data';
     ksort($front_matter);
-    if ($front_matter['posttype'] == 'article') {
+    if ($storage_type == 'page') {
       return "---\n" . Yaml::dump($front_matter) . "---\n" . $content . "\n";
     } else {
       $front_matter['content'] = $content;
@@ -164,7 +160,8 @@ function write_file($file, $content, $overwrite = false) {
 function delete($request) {
     global $config;
 
-    $filename = str_replace($config['base_url'], $config['base_path'], $request->url);
+    $posttype = get_content_type_from_url($request->url);
+    $filename = get_source_from_url($posttype, $request->url);
     if (false === unlink($filename)) {
         quit(400, 'unlink_failed', 'Unable to delete the source file.');
     }
@@ -187,7 +184,8 @@ function undelete($request) {
 }
 
 function update($request) {
-    $filename = get_source_from_url($request->url);
+    $posttype = get_content_type_from_url($request->url);
+    $filename = get_source_from_url($posttype, $request->url);
     $original = parse_file($filename);
     foreach($request->update['replace'] as $key=>$value) {
         $original[$key] = $value;
@@ -243,26 +241,40 @@ function create($request, $photos = []) {
 
     if (!empty($photos)) {
         # add uploaded photos to the front matter.
+        $photo_urls = array_map(function ($val) { return $val['photo']; }, $photos);
         if (!isset($properties['photo'])) {
-            $properties['photo'] = $photos;
+            $properties['photo'] = $photo_urls;
         } else {
-            $properties['photo'] = array_merge($properties['photo'], $photos);
+            $properties['photo'] = array_merge($properties['photo'], $photo_urls);
         }
-    }
-    if (!empty($properties['photo'])) {
-        $properties['thumbnail'] = preg_replace('#-' . $config['max_image_width'] . '\.#', '-200.', $properties['photo']);
+
+        # add thumbnails to the front matter.
+        $thumb_urls = array_filter(
+            array_map(function ($val) { return $val['thumbnail']; }, $photos),
+            function ($val) { return $val; });
+        if (!isset($properties['thumbnail'])) {
+            $properties['thumbnail'] = $thumb_urls;
+        } else {
+            $properties['thumbnail'] = array_merge($properties['thumbnail'], $thumb_urls);
+        }
+
+        if ($config['append_image_markup']) {
+            foreach ($photos as $photo) {
+            }
+        }
     }
 
     # figure out what kind of post this is.
-    $properties['posttype'] = post_type_discovery($properties);
+    $posttype = post_type_discovery($properties);
+    $properties['posttype'] = $posttype;
 
     # invoke any source-specific functions for this post type.
     # articles, notes, and photos don't really have "sources", other than
     # their own content.
     # replies, reposts, likes, bookmarks, etc, should reference source URLs
     # and may interact with those sources here.
-    if (! in_array($properties['posttype'], ['article', 'note', 'photo'])) {
-        list($properties, $content) = posttype_source_function($properties['posttype'], $properties, $content);
+    if (! in_array($posttype, ['article', 'note', 'photo'])) {
+        list($properties, $content) = posttype_source_function($posttype, $properties, $content);
     }
 
     # all items need a date
@@ -303,18 +315,18 @@ function create($request, $photos = []) {
     # or YAML blobs for notes, etc
     $file_contents = build_post($properties, $content);
 
-    if ($properties['posttype'] == 'article') {
+    $storage_type = $config['content_storage_type'][$posttype] ?? 'data';
+    if ($storage_type == 'page') {
         # produce a file name for this post.
-        $path = $config['source_path'] . 'content/';
-        $url = $config['base_url'] . $properties['slug'] . '/index.html';
-        $filename = $path . $properties['slug'] . '.md';
+        $url = get_url_from_properties($properties);
+        $filename = get_source_from_url($posttype, $url);
         # write_file will default to NOT overwriting existing files,
         # so we don't need to check that here.
         write_file($filename, $file_contents);
-    } else {
+    } elseif ($storage_type == 'data') {
         # this content will be appended to a data file.
         # our config file defines the content_path of the desired file.
-        $content_path = $config['content_paths'][$properties['posttype']];
+        $content_path = $config['content_paths'][$posttype];
         $yaml_path = $config['source_path'] . 'data/' . $content_path . '.yaml';
         $md_path = $config['source_path'] . 'content/' . $content_path . '.md';
         $url = $config['base_url'] . $content_path . '/#' . $properties['slug'];
@@ -345,6 +357,8 @@ function create($request, $photos = []) {
             $section_path = dirname($config['source_path'] . 'content/' . $content_path) . '/_index.md';
             file_put_contents($section_path, "---\ntype: $content_type\n---\n");
         }
+    } else {
+        quit(400, 'storage_error', "Unsupported storage type: {$storage_type}");
     }
 
     # build the site.

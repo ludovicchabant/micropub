@@ -50,7 +50,7 @@ function resize_image($file, $width) {
     chmod($file, 0644);
 }
 
-function media_upload($file, $target_dir, $max_width) {
+function media_upload($file, $target_dir, $max_width, $thumb_width) {
     # first make sure the file isn't too large
     if ( $file['size'] > 6000000 )  {
         quit(413, 'too_large', 'The file is too large.');
@@ -76,7 +76,8 @@ function media_upload($file, $target_dir, $max_width) {
     # and replace spaces with dashes, for sanity and safety
     $orig = str_replace(' ', '-', explode('.', $file['name'])[0]);
     $date = new DateTime();
-    $filename = $orig . '-' . $date->format('u') . "-$max_width.$ext";
+    $suffix = ($max_width > 0 ? '-$max_width' : '') . ".$ext";
+    $filename = $orig . '-' . $date->format('u') . $suffix;
     # extra caution to ensure the file doesn't already exist
     if ( file_exists("$target_dir$filename")) {
         quit(409, 'file_exists', 'A filename conflict has occurred on the server.');
@@ -92,15 +93,69 @@ function media_upload($file, $target_dir, $max_width) {
     if ( $details === false ) {
         quit(415, 'invalid_file', 'Invalid file type was uploaded.');
     }
-    if ( $details[0] > $max_width ) {
+    if ( $max_width > 0 && $details[0] > $max_width ) {
         resize_image("$target_dir$filename", $max_width );
     }
 
-    # let's make a thumbnail, too.
-    $thumbnail = str_replace("-$max_width.$ext", "-200.$ext", $filename);
-    copy("$target_dir$filename", "$target_dir$thumbnail");
-    resize_image("$target_dir$thumbnail", 200 );
+    if ($thumb_width > 0) {
+        # let's make a thumbnail, too.
+        $thumbnail = str_replace($suffix, "-$thumb_width.$ext", $filename);
+        copy("$target_dir$filename", "$target_dir$thumbnail");
+        resize_image("$target_dir$thumbnail", $thumb_width );
+    } else {
+        $thumbnail = false;
+    }
 
-    return $filename;
+    return [$filename, $thumbnail];
 }
+
+function create_media($file) {
+    global $config;
+
+    # upload the given file, and optionally copy it to the site source.
+    $upload_path = $config['base_path'] . $config['upload_path'];
+    check_target_dir($upload_path);
+
+    [$filename, $thumbname] = media_upload($file, $upload_path,
+        $config['max_image_width'], $config['thumbnail_width']);
+    # do we need to copy this file to the source /static/ directory?
+    if ($config['copy_uploads_to_source'] === TRUE ) {
+        # we need to ensure '/source/static/uploads/YYYY/mm/' exists
+        $copy_path = $config['source_path'] . 'static/' . $config['upload_path'];
+        check_target_dir($copy_path);
+
+        if ( copy ( $upload_path . $filename, $copy_path . $filename ) === FALSE ) {
+            quit(400, 'copy_error', 'Unable to copy upload to source directory');
+        }
+        # be sure to copy the thumbnail file, too
+        if ($thumbname) {
+            if ( copy ( $upload_path . $thumbname, $copy_path . $thumbname ) === FALSE ) {
+                quit(400, 'copy_error', 'Unable to copy thumbnail to source directory');
+            }
+        }
+    }
+    $url = $config['base_url'] . $config['upload_path'] . $filename;
+    return $url;
+}
+
+function create_photo(array $photos) {
+    global $config;
+
+    # we upload to the source path here, because Hugo will copy the contents
+    # of our static site into the rendered site for us.
+    $copy_path = $config['source_path'] . 'static/' . $config['upload_path'];
+    check_target_dir($copy_path);
+
+    $photo_urls = array();
+    foreach($photos as $photo) {
+        [$filename, $thumbname] = media_upload($photo, $copy_path,
+            $config['max_image_width'], $config['thumbnail_width']);
+        $base_photo_url = $config['base_url'] . $config['upload_path'];
+        $photo_urls[] = array(
+            'photo' => $base_photo_url . $filename,
+            'thumbnail' => ($thumbname ? $base_photo_url . $thumbname : false));
+    }
+    return $photo_urls;
+}
+
 ?>
