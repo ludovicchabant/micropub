@@ -16,15 +16,38 @@ function http_status ($code) {
 }
 
 function quit ($code = 400, $error = '', $description = 'An error occurred.', $location = '') {
-    $code = (int) $code;
-    header("HTTP/1.1 " . http_status($code));
-    if ( $code >= 400 ) {
-        echo json_encode(['error' => $error, 'error_description' => $description]);
-    } elseif ($code == 200 || $code == 201 || $code == 202) {
-        if (!empty($location)) {
-            header('Location: ' . $location);
-            echo $location;
+    global $is_cli;
+    if (!$is_cli) {
+        $code = (int) $code;
+        header("HTTP/1.1 " . http_status($code));
+        if ( $code >= 400 ) {
+            echo json_encode(['error' => $error, 'error_description' => $description]);
+        } elseif ($code == 200 || $code == 201 || $code == 202) {
+            if (!empty($location)) {
+                header('Location: ' . $location);
+                echo $location;
+            }
         }
+    } else {
+        $is_error = ($code >= 300);
+        echo ($is_error ? "ERROR " : "RETURN ") . http_status($code) . "\n";
+        if ( $code >= 400 ) {
+            echo $error . ': ' . $description . "\n";
+        } elseif ($code == 200 || $code == 201 || $code == 202) {
+            if (!empty($location)) {
+                echo 'redirect to ' . $location . "\n";
+            }
+        }
+        if ($is_error) {
+            echo "stacktrace:\n";
+            $backtrace = debug_backtrace();
+            foreach ($backtrace as $frame) {
+                echo "  ";
+                echo "{$frame['file']}:{$frame['line']} ";
+                echo "{$frame['function']}(...)\n";
+            }
+        }
+        echo "\n";
     }
     die();
 }
@@ -35,7 +58,10 @@ function show_info() {
 }
 
 function parse_request() {
-    if ( strtolower($_SERVER['CONTENT_TYPE']) == 'application/json' || strtolower($_SERVER['HTTP_CONTENT_TYPE']) == 'application/json' ) {
+    $content_type = isset($_SERVER['CONTENT_TYPE']) ?  $_SERVER['CONTENT_TYPE'] : '';
+    $http_content_type = isset($_SERVER['HTTP_CONTENT_TYPE']) ? $_SERVER['HTTP_CONTENT_TYPE'] : '';
+    if (strtolower($content_type) == 'application/json' ||
+        strtolower($http_content_type) == 'application/json') {
         $request = \p3k\Micropub\Request::createFromJSONObject(json_decode(file_get_contents('php://input'), true));
     } else {
         $request = \p3k\Micropub\Request::createFromPostArray($_POST);
@@ -82,7 +108,7 @@ function indieAuth($endpoint, $token, $me = '') {
     if ( $me == '' ) { $me = $_SERVER['HTTP_HOST']; }
     $ch = curl_init($endpoint);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, 
+    curl_setopt($ch, CURLOPT_HTTPHEADER,
         Array("Accept: application/json","Authorization: $token"));
     $token_response = strval(curl_exec($ch));
     curl_close($ch);

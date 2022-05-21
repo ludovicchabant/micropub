@@ -350,9 +350,12 @@ function create($request, $photos = []) {
     # build the site.
     build_site();
 
-    # allow the client to move on, while we syndicate this post
-    header('HTTP/1.1 201 Created');
-    header('Location: ' . $url);
+    global $is_cli;
+    if (!$is_cli) {
+        # allow the client to move on, while we syndicate this post
+        header('HTTP/1.1 201 Created');
+        header('Location: ' . $url);
+    }
 
     # syndicate this post
     $syndication_targets = array();
