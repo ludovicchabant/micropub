@@ -149,7 +149,7 @@ function show_config($show = 'all') {
 
     $media_endpoint = isset($config['media_endpoint']) ?
 	$config['media_endpoint'] :
-	($config['base_url'] . 'micropub/index.php');
+	($config['base_url'] . $config['micropub_url'] . 'index.php');
     $conf = array("media-endpoint" => $media_endpoint);
     if ( ! empty($syndicate_to) ) {
         $conf['syndicate-to'] = $syndicate_to;

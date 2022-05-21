@@ -8,6 +8,9 @@ $config = array(
     # the URL of our site, with trailing slash.
     'base_url' => 'https://' . $_SERVER['HTTP_HOST'] .'/',
 
+    # where this micropub endpoint is, with trailing slash.
+    'micropub_url' => 'micropub/',
+
     # the base path of the site's docroot, with trailing slash
     'base_path' => '/var/www/html/',
 
