@@ -75,11 +75,16 @@ function media_upload($file, $target_dir, $max_width, $thumb_width) {
     # define our own name for this file.
     # and replace spaces with dashes, for sanity and safety
     $orig = str_replace(' ', '-', explode('.', $file['name'])[0]);
-    $date = new DateTime();
-    $suffix = ($max_width > 0 ? '-$max_width' : '') . ".$ext";
-    $filename = $orig . '-' . $date->format('u') . $suffix;
-    # extra caution to ensure the file doesn't already exist
-    if ( file_exists("$target_dir$filename")) {
+    $width_suffix = ($max_width > 0 ? '-$max_width' : '') . ".$ext";
+    $filename = $orig . $width_suffix;
+    # if the file already exists, add the date as a suffix
+    $date_suffix = '';
+    if (file_exists("$target_dir$filename")) {
+        $date = new DateTime();
+        $date_suffix = '-' . $date->format('u');
+        $filename = $orig . $date_suffix . $width_suffix;
+    }
+    if (file_exists("$target_dir$filename")) {
         quit(409, 'file_exists', 'A filename conflict has occurred on the server.');
     }
 
@@ -99,7 +104,7 @@ function media_upload($file, $target_dir, $max_width, $thumb_width) {
 
     if ($thumb_width > 0) {
         # let's make a thumbnail, too.
-        $thumbnail = str_replace($suffix, "-$thumb_width.$ext", $filename);
+        $thumbnail = $orig . $date_suffix . "-$thumb_width.$ext";
         copy("$target_dir$filename", "$target_dir$thumbnail");
         resize_image("$target_dir$thumbnail", $thumb_width );
     } else {
