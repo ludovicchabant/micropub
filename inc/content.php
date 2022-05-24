@@ -296,10 +296,10 @@ function create($request, $photos = []) {
 
     # we need either a title, or a slug.
     # NOTE: MF2 defines "name" as the title value.
-    if (!isset($properties['name']) && !isset($properties['slug'])) {
+    if ((!isset($properties['name']) || !$properties['name']) &&
+	    (!isset($properties['slug']) || !$properties['slug'])) {
         # We will assign this a slug.
-        # Hex value of seconds since UNIX epoch
-        $properties['slug'] = dechex(date('U'));
+	$properties['slug'] = $config['slug_fallback'] or dechex(date('U'));
     }
 
     # if we have a title but not a slug, generate a slug

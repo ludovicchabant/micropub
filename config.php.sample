@@ -23,6 +23,9 @@ $config = array(
     # the pixel width of uploaded image thumbnails.
     'thumbnail_width' => 400,
 
+    # default slug is hex value of seconds since UNIX epoch.
+    'slug_fallback' => dechex(date('U')),
+
     # whether to insert an actual image tag for photo posts.
     'append_image_markup' => FALSE,
 
