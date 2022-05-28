@@ -205,4 +205,27 @@ function create_photo(array $photos) {
     return $photo_urls;
 }
 
+function find_thumbnail($photo_url, $thumbnail_width) {
+    global $config;
+    $base_url = $config['base_url'];
+    if (stripos($photo_url, $base_url) !== 0) {
+        # Not an image that lives on our server.
+        return false;
+    }
+    $rel_photo_url = substr($photo_url, strlen($base_url));
+    $info = pathinfo($rel_photo_url);
+    $rel_path = $info['dirname'];
+    $name = $info['filename'];
+    $ext = $info['extension'];
+
+    $rel_thumb = "${rel_path}/${name}-${thumbnail_width}.${ext}";
+    if (file_exists($config['source_path']."static/".$rel_thumb)) {
+        return $base_url.$rel_thumb;
+    }
+    if (file_exists($config['base_path'].$rel_thumb)) {
+        return $base_url.$rel_thumb;
+    }
+    return false;
+}
+
 ?>
