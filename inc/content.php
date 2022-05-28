@@ -338,7 +338,8 @@ function create($request, $photos = []) {
     if ((!isset($properties['name']) || !$properties['name']) &&
 	    (!isset($properties['slug']) || !$properties['slug'])) {
         # We will assign this a slug.
-	$properties['slug'] = $config['slug_fallback'] or dechex(date('U'));
+	$properties['slug'] = isset($config['slug_fallback']) ?
+	    $config['slug_fallback'] : dechex(date('U'));
     }
 
     # if we have a title but not a slug, generate a slug
