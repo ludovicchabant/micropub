@@ -126,7 +126,7 @@ function normalize_properties($properties) {
     $props = [];
     foreach ($properties as $k => $v) {
         # we want the "photo" property to be an array, even if it's a
-        # single element.  Our Hugo templates require this.
+        # single element.
         if ($k == 'photo') {
             $props[$k] = $v;
         } elseif (is_array($v) && count($v) === 1) {
@@ -299,13 +299,8 @@ function create($request, $photos = []) {
     unset($properties['content']);
 
     if (!empty($photos)) {
-        # add uploaded photos to the front matter, and optionally
-        # to the content.
+        # add uploaded photos to the front matter.
         make_image_frontmatter($properties, $photos);
-        if ($config['append_image_markup']) {
-            foreach ($photos as $photo) {
-            }
-        }
     }
 
     # figure out what kind of post this is.
