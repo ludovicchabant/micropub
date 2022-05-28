@@ -175,10 +175,12 @@ function build_site() {
             $config['base_path'], $config['source_path'],
             $config['base_url']),
         $config['command']);
-    $prevwd = getcwd();
-    chdir($config['source_path']);
-    exec($command);
-    chdir($prevwd);
+    if ($command) {
+        $prevwd = getcwd();
+        chdir($config['source_path']);
+        exec($command);
+        chdir($prevwd);
+    }
 }
 
 # PHP handles arrays of file uploads differently from a single file upload.
