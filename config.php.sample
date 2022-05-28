@@ -23,11 +23,24 @@ $config = array(
     # the pixel width of uploaded image thumbnails.
     'thumbnail_width' => 400,
 
+    # frontmatter formatting.
+    #
+    # we will call `normalize_${format}_frontmatter` on the microformats2
+    # properties found in the request which, by default, turns all array
+    # properties with only 1 item into a scalar property, except for 'photo'
+    # which it keeps as an array. also, 'title' is assigned 'name'.
+    #
+    # we will call `make_${format}_image_frontmatter on any provided list
+    # of photos which, by default, adds the photo URLs inside an array
+    # called 'photo'.
+    #
+    # we will call `finalize_${format}_frontmatter` to do any final
+    # processing on a post's properties which, by default
+    #
+    'frontmatter_format' => 'default',
+
     # default slug is hex value of seconds since UNIX epoch.
     'slug_fallback' => dechex(date('U')),
-
-    # whether to insert an actual image tag for photo posts.
-    'append_image_markup' => FALSE,
 
     # the path to the Hugo site.  DO NOT include "content/", we'll handle that.
     # trailing slash required.

@@ -2,6 +2,65 @@
 
 use Symfony\Component\Yaml\Yaml;
 
+function normalize_frontmatter($mf2props) {
+    global $config;
+    $fmt = $config['frontmatter_format'] ?? 'default';
+    $funcname = "normalize_${fmt}_frontmatter";
+    if (is_callable($funcname)) {
+        return call_user_func($funcname, $mf2props);
+    } else {
+        return normalize_default_frontmatter($mf2props);
+    }
+}
+
+function normalize_default_frontmatter(array $mf2props) {
+    return normalize_properties($mf2props);
+}
+
+function make_image_frontmatter(array &$properties, array &$photos) {
+    global $config;
+    $fmt = $config['frontmatter_format'] ?? 'default';
+    $funcname = "make_${fmt}_image_frontmatter";
+    if (is_callable($funcname)) {
+        call_user_func_array($funcname, array(&$properties, &$photos));
+    } else {
+        make_default_image_frontmatter($properties, $photos);
+    }
+}
+
+function make_default_image_frontmatter(array &$properties, array &$photos) {
+    $photo_urls = array_map(function ($val) { return $val['photo']; }, $photos);
+    if (!isset($properties['photo'])) {
+        $properties['photo'] = $photo_urls;
+    } else {
+        $properties['photo'] = array_merge($properties['photo'], $photo_urls);
+    }
+
+    # add thumbnails to the front matter.
+    $thumb_urls = array_filter(
+        array_map(function ($val) { return $val['thumbnail']; }, $photos),
+            function ($val) { return $val; });
+    if (!isset($properties['thumbnail'])) {
+        $properties['thumbnail'] = $thumb_urls;
+    } else {
+        $properties['thumbnail'] = array_merge($properties['thumbnail'], $thumb_urls);
+    }
+}
+
+function finalize_frontmatter(array &$properties) {
+    global $config;
+    $fmt = $config['frontmatter_format'] ?? 'default';
+    $funcname = "finalize_${fmt}_frontmatter";
+    if (is_callable($funcname)) {
+        call_user_func_array($funcname, array(&$properties));
+    } else {
+        finalize_default_frontmatter($properties);
+    }
+}
+
+function finalize_default_frontmatter(array &$properties) {
+}
+
 function parse_file($original) {
     $properties = [];
     # all of the front matter will be in $parts[1]
@@ -222,7 +281,7 @@ function create($request, $photos = []) {
 
     $mf2 = $request->toMf2();
     # make a more normal PHP array from the MF2 JSON array
-    $properties = normalize_properties($mf2['properties']);
+    $properties = normalize_frontmatter($mf2['properties']);
 
     # pull out just the content, so that $properties can be front matter
     # NOTE: content may be in ['content'] or ['content']['html'].
@@ -240,24 +299,9 @@ function create($request, $photos = []) {
     unset($properties['content']);
 
     if (!empty($photos)) {
-        # add uploaded photos to the front matter.
-        $photo_urls = array_map(function ($val) { return $val['photo']; }, $photos);
-        if (!isset($properties['photo'])) {
-            $properties['photo'] = $photo_urls;
-        } else {
-            $properties['photo'] = array_merge($properties['photo'], $photo_urls);
-        }
-
-        # add thumbnails to the front matter.
-        $thumb_urls = array_filter(
-            array_map(function ($val) { return $val['thumbnail']; }, $photos),
-            function ($val) { return $val; });
-        if (!isset($properties['thumbnail'])) {
-            $properties['thumbnail'] = $thumb_urls;
-        } else {
-            $properties['thumbnail'] = array_merge($properties['thumbnail'], $thumb_urls);
-        }
-
+        # add uploaded photos to the front matter, and optionally
+        # to the content.
+        make_image_frontmatter($properties, $photos);
         if ($config['append_image_markup']) {
             foreach ($photos as $photo) {
             }
@@ -310,6 +354,9 @@ function create($request, $photos = []) {
     if (isset($properties['slug'])) {
         $properties['slug'] = slugify($properties['slug']);
     }
+
+    # last minute massaging of the front-matter.
+    finalize_frontmatter($properties);
 
     # build the entire source file, with front matter and content for articles
     # or YAML blobs for notes, etc
