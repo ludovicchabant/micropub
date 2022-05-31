@@ -420,7 +420,16 @@ function create($request, $photos = []) {
         header('Location: ' . $url);
     }
 
-    # syndicate this post
+    # syndicate this post.
+    syndicate_post($request, $properties, $content, $url);
+
+    # send a 201 response, with the URL of this item.
+    quit(201, null, null, $url);
+}
+
+function syndicate_post($request, $properties, $content, $url) {
+    global $config;
+
     $syndication_targets = array();
     # some post kinds may enforce syndication, even if the Micropub client
     # did not send an mp-syndicate-to parameter. This code finds those post
@@ -467,8 +476,6 @@ function create($request, $photos = []) {
             }
         }
     }
-    # send a 201 response, with the URL of this item.
-    quit(201, null, null, $url);
 }
 
 ?>
