@@ -17,20 +17,20 @@ function normalize_default_frontmatter(array $mf2props) {
     return normalize_properties($mf2props);
 }
 
-function make_image_frontmatter(array &$properties, array &$photos) {
+function make_image_frontmatter(array &$properties, array &$photos, $replace=false) {
     global $config;
     $fmt = $config['frontmatter_format'] ?? 'default';
     $funcname = "make_${fmt}_image_frontmatter";
     if (is_callable($funcname)) {
-        call_user_func_array($funcname, array(&$properties, &$photos));
+        call_user_func_array($funcname, array(&$properties, &$photos, $replace));
     } else {
-        make_default_image_frontmatter($properties, $photos);
+        make_default_image_frontmatter($properties, $photos, $replace);
     }
 }
 
-function make_default_image_frontmatter(array &$properties, array &$photos) {
+function make_default_image_frontmatter(array &$properties, array &$photos, $replace) {
     $photo_urls = array_map(function ($val) { return $val['photo']; }, $photos);
-    if (!isset($properties['photo'])) {
+    if ($replace || !isset($properties['photo'])) {
         $properties['photo'] = $photo_urls;
     } else {
         $properties['photo'] = array_merge($properties['photo'], $photo_urls);
@@ -40,7 +40,7 @@ function make_default_image_frontmatter(array &$properties, array &$photos) {
     $thumb_urls = array_filter(
         array_map(function ($val) { return $val['thumbnail']; }, $photos),
             function ($val) { return $val; });
-    if (!isset($properties['thumbnail'])) {
+    if ($replace || !isset($properties['thumbnail'])) {
         $properties['thumbnail'] = $thumb_urls;
     } else {
         $properties['thumbnail'] = array_merge($properties['thumbnail'], $thumb_urls);
