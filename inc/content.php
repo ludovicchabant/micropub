@@ -351,6 +351,10 @@ function create($request, $photos = []) {
         $properties['slug'] = slugify($properties['slug']);
     }
 
+    # figure out the URL and filename for this post.
+    $url = get_url_from_properties($properties);
+    $filename = get_source_from_properties($properties);
+
     # last minute massaging of the front-matter.
     finalize_frontmatter($properties);
 
@@ -358,21 +362,20 @@ function create($request, $photos = []) {
     # or YAML blobs for notes, etc
     $file_contents = build_post($properties, $content);
 
-    $storage_type = $config['content_storage_type'][$posttype] ?? 'data';
     if ($storage_type == 'page') {
-        # produce a file name for this post.
-        $url = get_url_from_properties($properties);
-        $filename = get_source_from_url($posttype, $url);
+
         # write_file will default to NOT overwriting existing files,
         # so we don't need to check that here.
         write_file($filename, $file_contents);
+
     } elseif ($storage_type == 'data') {
-        # this content will be appended to a data file.
-        # our config file defines the content_path of the desired file.
-        $content_path = $config['content_paths'][$posttype];
-        $yaml_path = $config['source_path'] . 'data/' . $content_path . '.yaml';
-        $md_path = $config['source_path'] . 'content/' . $content_path . '.md';
-        $url = $config['base_url'] . $content_path . '/#' . $properties['slug'];
+
+        # this content will be appended to a data file, and both a post
+        # file and (optionally) a section file will be created.
+        $yaml_path = $filename[0];
+        $md_path = $filename[1];
+        $section_path = $filename[2];
+        $url = $url . '/#' . $properties['slug'];
         check_target_dir(dirname($yaml_path));
         check_target_dir(dirname($md_path));
         if (! file_exists($yaml_path)) {
@@ -396,17 +399,20 @@ function create($request, $photos = []) {
         # can be generated. If the content_path has any slashes in it, that
         # means that sub-directories are defined, and thus a section index
         # is required.
-        if (FALSE !== strpos($content_path, '/')) {
-            $section_path = dirname($config['source_path'] . 'content/' . $content_path) . '/_index.md';
+        if (FALSE !== $section_path) {
             file_put_contents($section_path, "---\ntype: $content_type\n---\n");
         }
+
     } else {
+
         quit(400, 'storage_error', "Unsupported storage type: {$storage_type}");
+
     }
 
     # build the site.
     build_site();
 
+    # set the header for the new post's URL.
     global $is_cli;
     if (!$is_cli) {
         # allow the client to move on, while we syndicate this post
