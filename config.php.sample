@@ -23,6 +23,14 @@ $config = array(
     # the pixel width of uploaded image thumbnails.
     'thumbnail_width' => 400,
 
+    # whether to bundle uploaded photos with the post they're used in.
+    'bundle_photos' => FALSE,
+
+    # how old (at most) should the photo file be for it to be bundled
+    # with a post it's used in (when `bundle_photos` is `TRUE`)
+    # the value is in seconds.
+    'bundle_photos_age_threshold' => 30,
+
     # frontmatter formatting.
     #
     # we will call `normalize_${format}_frontmatter` on the microformats2

@@ -280,7 +280,20 @@ function create($request, $photos = []) {
     global $config;
 
     $mf2 = $request->toMf2();
-    # make a more normal PHP array from the MF2 JSON array
+    # grab the list of photos from the MF2 data, we might need it later.
+    $all_photos = $photos;
+    if ($config['bundle_photos'] ?? FALSE) {
+        $thumbnail_width = $config['thumbnail_width'];
+        if (isset($mf2['properties']['photo'])) {
+            foreach ($mf2['properties']['photo'] as $photo_url) {
+                $all_photos[] = array(
+                    'photo' => $photo_url,
+                    'thumbnail' => find_thumbnail($photo_url, $thumbnail_width)
+                );
+            }
+        }
+    }
+    # make a more normal PHP array from the MF2 JSON array.
     $properties = normalize_frontmatter($mf2['properties']);
 
     # pull out just the content, so that $properties can be front matter
@@ -354,6 +367,14 @@ function create($request, $photos = []) {
     # figure out the URL and filename for this post.
     $url = get_url_from_properties($properties);
     $filename = get_source_from_properties($properties);
+
+    # optionally bundle photos with the post
+    $storage_type = $config['content_storage_type'][$posttype] ?? 'data';
+    if ($storage_type == 'page') {
+        if ($config['bundle_photos'] ?? FALSE) {
+            $filename = bundle_photos_with_post($filename, $url, $all_photos, $properties);
+        }
+    }
 
     # last minute massaging of the front-matter.
     finalize_frontmatter($properties);
@@ -476,6 +497,79 @@ function syndicate_post($request, $properties, $content, $url) {
             }
         }
     }
+}
+
+function bundle_photos_with_post($filename, $url, array $photos, array &$properties) {
+    global $config;
+
+    $age_threshold = $config['bundle_photos_age_threshold'] ?? 30;
+    $now_minus_threshold = time() - $age_threshold;
+
+    $files_to_move = array();
+    $files_to_unlink = array();
+    $url = rtrim($url, '/ ').'/';
+
+    # Find the file(s) for each photo and thumbnail. If they are more recent
+    # than our threshold, bundle them with the page.
+    foreach ($photos as &$photo) {
+        $photo_url = $photo['photo'];
+        $photo_paths = find_media_path($photo_url, true);
+
+        $thumb_url = $photo['thumbnail'];
+        $thumb_paths = $thumb_url ? find_media_path($thumb_url, true) : false;
+
+        if ($photo_paths !== false) {
+            $photo_mtime = filemtime($photo_paths[0]);
+            if ($photo_mtime >= $now_minus_threshold) {
+                $files_to_move[] = $photo_paths[0];
+                if (isset($photo_paths[1])) $files_to_unlink[] = $photo_paths[1];
+
+                $fname = basename($photo_paths[0]);
+                $photo['photo'] = $url.$fname;
+            }
+        }
+        if ($thumb_paths !== false) {
+            $thumb_mtime = filemtime($thumb_paths[0]);
+            if ($thumb_mtime >= $now_minus_threshold) {
+                $files_to_move[] = $thumb_paths[0];
+                if (isset($thumb_paths[1])) $files_to_unlink[] = $thumb_paths[1];
+
+                $fname = basename($thumb_paths[0]);
+                $photo['thumbnail'] = $url.$fname;
+            }
+        }
+    }
+
+    if (count($files_to_move) == 0) {
+        return $filename;
+    }
+
+    # We have found files to bundle. Create the bundle directory and move
+    # the files there. Return the path for the bundle's index file.
+    $ext = pathinfo($filename, PATHINFO_EXTENSION);
+    if ($ext) $ext = ".".$ext;  # pathinfo doesn't include the dot
+    $bundle_dir = substr($filename, 0, strlen($filename) - strlen($ext))."/";
+    $bundle_index = $bundle_dir."index".$ext;
+
+    check_target_dir($bundle_dir);
+    foreach ($files_to_move as $file_to_move) {
+        $bundle_file = $bundle_dir.basename($file_to_move);
+        if (false === rename($file_to_move, $bundle_file)) {
+            quit(400, "cannot_move", "Can't move ".$file_to_move." to ".$bundle_file);
+        }
+    }
+
+    # Delete files that were uploaded directly to the public upload directory.
+    foreach ($files_to_unlink as $file_to_unlink) {
+        unlink($file_to_unlink);
+    }
+
+    # Rewrite the frontmatter for the different photo URLs.
+    # We pass `true` to indicate the frontmatter formatter to replace any
+    # existing photos.
+    make_image_frontmatter($properties, $photos, true);
+
+    return $bundle_index;
 }
 
 ?>
