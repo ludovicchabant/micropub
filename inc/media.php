@@ -185,7 +185,7 @@ function create_media($file) {
     return $url;
 }
 
-function create_photo(array $photos) {
+function create_photos(array $photos) {
     global $config;
 
     # we upload to the source path here, because Hugo will copy the contents
@@ -207,6 +207,7 @@ function create_photo(array $photos) {
 
 function find_thumbnail($photo_url, $thumbnail_width) {
     global $config;
+
     $base_url = $config['base_url'];
     if (stripos($photo_url, $base_url) !== 0) {
         # Not an image that lives on our server.

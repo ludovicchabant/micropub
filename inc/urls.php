@@ -2,6 +2,7 @@
 
 function get_source_from_url($posttype, $url) {
     global $config;
+
     # strip base URL and do general cleanup
     $url = str_replace($config['base_url'], '', $url);
     $url = rtrim($url, "/ ");

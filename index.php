@@ -125,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if (!empty($_FILES['photo'])) {
         # ensure we have a normal array of files on which to iterate
         $photos = normalize_files_array($_FILES['photo']);
-        $photo_urls = create_photo($photos);
+        $photo_urls = create_photos($photos);
     }
     # Parse the JSON or POST body into an object
     $request = parse_request();
