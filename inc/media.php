@@ -229,4 +229,31 @@ function find_thumbnail($photo_url, $thumbnail_width) {
     return false;
 }
 
+function find_media_path($media_url, $all=false) {
+    global $config;
+
+    $base_url = $config['base_url'];
+    if (stripos($media_url, $base_url) !== 0) {
+        # Not a file that lives on our server.
+        return false;
+    }
+
+    $out_paths = array();
+
+    $rel_media_url = substr($media_url, strlen($base_url));
+    $source_path = $config['source_path']."static/".$rel_media_url;
+    if (file_exists($source_path)) {
+        $out_paths[] = $source_path;
+    }
+    $public_path = $config['base_path'].$rel_media_url;
+    if (file_exists($public_path)) {
+        $out_paths[] = $public_path;
+    }
+
+    if (count($out_paths) == 0) {
+        return false;
+    }
+    return $all ? $out_paths : $out_paths[0];
+}
+
 ?>
